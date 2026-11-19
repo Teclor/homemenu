@@ -1,0 +1,5 @@
+.idea
+/.env
+/data/
+/homemenu
+/homemenu-backup.tar.gz

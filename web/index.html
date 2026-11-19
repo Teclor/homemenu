@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Домашнее меню</title>
+<link rel="stylesheet" href="/style.css">
+<script defer src="/app.js"></script>
+</head>
+<body>
+<header class="bar">
+  <button id="open-sections" class="icon" aria-label="Открыть разделы">☰</button>
+  <a class="brand" href="/">Домашнее меню</a>
+  <a id="cart-link" class="button icon cart-link" href="/?cart=1" aria-label="Корзина" title="Корзина"><span aria-hidden="true">🛒</span><small id="cart-count" aria-hidden="true" hidden></small></a>
+  <button id="theme" class="icon" aria-label="Сменить тему">◐</button>
+  <a id="mode-link" class="button mode" href="/admin">Админпанель</a>
+</header>
+<dialog id="drawer">
+  <div class="drawer-title"><strong>Разделы</strong><button id="close-sections" class="icon" aria-label="Закрыть">×</button></div>
+  <nav id="drawer-sections" aria-label="Разделы"></nav>
+  <a class="button drawer-admin" href="/admin">Админпанель</a>
+</dialog>
+<nav id="sections" class="desktop" aria-label="Разделы"></nav>
+<main id="app" aria-busy="true"><p>Загрузка меню…</p></main>
+<div id="action-status" class="sr-only" role="status"></div>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
