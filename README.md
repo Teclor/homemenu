@@ -4,11 +4,9 @@ HomeMenu — домашнее меню для локальной сети. Он�
 
 ## Развёртывание в Docker
 
-Нужны Docker Engine и Docker Compose. На сервере с OpenMediaVault, в том числе WD Sentinel DX4000, выполняйте команды по SSH из каталога проекта.
-
+Нужны Docker Engine и Docker Compose.
 ```sh
 docker compose up -d --build
-docker compose ps
 ```
 
 По умолчанию приложение публикуется на порту **5000**. На сервере откройте [меню](http://localhost:5000/) или [админпанель](http://localhost:5000/admin). На другом устройстве в той же сети замените `localhost` на LAN-адрес сервера, например `http://192.168.0.112:5000/`.

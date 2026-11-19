@@ -24,11 +24,13 @@ import (
 //go:embed web/*
 var assets embed.FS
 
+const itemColumns = `(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, section INTEGER NOT NULL REFERENCES sections, quantity INTEGER NOT NULL CHECK(quantity >= 0), position INTEGER NOT NULL, place INTEGER REFERENCES places ON DELETE SET NULL, description TEXT NOT NULL DEFAULT '', description_align TEXT NOT NULL DEFAULT 'center' CHECK(description_align IN ('left','center')), photo TEXT NOT NULL DEFAULT '')`
+
 const schema = `
 CREATE TABLE IF NOT EXISTS sections(id INTEGER PRIMARY KEY, name TEXT NOT NULL, position INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS tags(id INTEGER PRIMARY KEY, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS places(id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY, name TEXT NOT NULL, section INTEGER NOT NULL REFERENCES sections, quantity INTEGER NOT NULL CHECK(quantity >= 0), position INTEGER NOT NULL, place INTEGER REFERENCES places ON DELETE SET NULL, description TEXT NOT NULL DEFAULT '', description_align TEXT NOT NULL DEFAULT 'center' CHECK(description_align IN ('left','center')), photo TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS items` + itemColumns + `;
 CREATE TABLE IF NOT EXISTS item_tags(item INTEGER REFERENCES items ON DELETE CASCADE, tag INTEGER REFERENCES tags ON DELETE CASCADE, PRIMARY KEY(item,tag));
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS checkout_receipts(token TEXT PRIMARY KEY);
@@ -237,6 +239,36 @@ func migrateDescriptionAlignment(db *sql.DB) error {
 	}
 	_, err := db.Exec("ALTER TABLE items ADD COLUMN description_align TEXT NOT NULL DEFAULT 'center' CHECK(description_align IN ('left','center'))")
 	return err
+}
+
+func migrateItemIDs(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var definition string
+	if err := tx.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='items'").Scan(&definition); err != nil {
+		return err
+	}
+	if strings.Contains(strings.ToUpper(definition), "AUTOINCREMENT") {
+		return nil
+	}
+	// Dropping the old table cascades to item_tags when foreign keys are enabled.
+	_, err = tx.Exec(`
+		CREATE TEMP TABLE saved_item_tags AS SELECT item,tag FROM item_tags;
+		DELETE FROM item_tags;
+		CREATE TABLE new_items` + itemColumns + `;
+		INSERT INTO new_items(id,name,section,quantity,position,place,description,description_align,photo)
+			SELECT id,name,section,quantity,position,place,description,description_align,photo FROM items;
+		DROP TABLE items;
+		ALTER TABLE new_items RENAME TO items;
+		INSERT INTO item_tags(item,tag) SELECT item,tag FROM saved_item_tags;
+		DROP TABLE saved_item_tags;`)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s server) connection(w http.ResponseWriter, r *http.Request) {
@@ -648,6 +680,9 @@ func main() {
 		log.Fatal(err)
 	}
 	if err := migrateDescriptionAlignment(db); err != nil {
+		log.Fatal(err)
+	}
+	if err := migrateItemIDs(db); err != nil {
 		log.Fatal(err)
 	}
 	if os.Getenv("SEED_DEMO") == "1" {
