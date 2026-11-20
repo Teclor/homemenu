@@ -296,20 +296,6 @@ function renderMenuItems(items, section, selected) {
     </article>`).join('')}</div>`;
 }
 
-const descriptionObserver = new ResizeObserver(entries => {
-  for (const { target } of entries) {
-    target.nextElementSibling.hidden = target.scrollHeight <= target.clientHeight + 1;
-  }
-});
-
-function renderDescription(text, alignment) {
-  if (!text) return '';
-  return `<div class="detail-description">
-    <p class="description-preview align-${alignment}">${escapeHTML(text)}</p>
-    <button class="description-more" type="button" data-description aria-haspopup="dialog" hidden>Подробнее</button>
-  </div>`;
-}
-
 function renderHomeCover() {
   const { photo, caption } = data.homepage[0] || {};
   if (!photo && !caption) return '';
@@ -333,7 +319,6 @@ function renderHomeSections(items, selected) {
 
 function renderVisitor() {
   swipeAnimation?.();
-  descriptionObserver.disconnect();
   const { section, selected, detail, itemID } = state();
   const sectionLinks = data.sections.map(entry =>
     `<a class="button" data-nav href="${visitorURL(entry.id)}"${entry === section ? ' aria-current="page"' : ''}>${escapeHTML(entry.name)}</a>`).join('');
@@ -357,21 +342,17 @@ function renderVisitor() {
     app.innerHTML = `<article class="detail">
       ${isCart() ? '' : detailArrow(adjacent.previous, 'previous', section, selected)}
       ${isCart() ? '' : detailArrow(adjacent.next, 'next', section, selected)}
-      <div class="detail-heading">${back}<h1 id="detail-title">${escapeHTML(detail.name)}</h1></div>
-      ${detail.quantity === 0 ? '<p class="ended danger">закончилась</p>' : ''}
-      ${place ? `<p class="muted detail-place">${escapeHTML(place.name)}</p>` : ''}
-      ${detail.photo ? `<img class="detail-photo" src="${photoURL(detail)}" alt="${escapeHTML(detail.name)}">` : ''}
-      ${tags.length ? `<div class="tags">${tags.map(tag => `<span class="tag">${escapeHTML(tag.name)}</span>`).join('')}</div>` : ''}
-      ${renderDescription(detail.description, alignment)}
+      <div class="detail-content">
+        <div class="detail-heading">${back}<h1 id="detail-title">${escapeHTML(detail.name)}</h1></div>
+        ${detail.quantity === 0 ? '<p class="ended danger">закончилась</p>' : ''}
+        ${place ? `<p class="muted detail-place">${escapeHTML(place.name)}</p>` : ''}
+        ${detail.photo ? `<img class="detail-photo" src="${photoURL(detail)}" alt="${escapeHTML(detail.name)}">` : ''}
+        ${tags.length ? `<div class="tags">${tags.map(tag => `<span class="tag">${escapeHTML(tag.name)}</span>`).join('')}</div>` : ''}
+        ${detail.description ? `<p class="detail-description align-${alignment}">${escapeHTML(detail.description)}</p>` : ''}
+      </div>
       <div class="stock"><strong>${detail.quantity} шт.</strong>
-      ${basket(detail)}${takeButton(detail, true)}</div></article>
-      ${detail.description ? `<dialog class="description-dialog" id="description-dialog" aria-labelledby="description-title">
-        <h2 id="description-title">${escapeHTML(detail.name)}</h2>
-        <div class="description-full align-${alignment}">${escapeHTML(detail.description)}</div>
-        <form method="dialog"><button autofocus>Закрыть</button></form>
-      </dialog>` : ''}`;
-    const preview = app.querySelector('.description-preview');
-    if (preview) descriptionObserver.observe(preview);
+      ${basket(detail)}${takeButton(detail, true)}</div>
+    </article>`;
     return;
   }
   const available = visitorItems(section);
@@ -793,18 +774,19 @@ function navigate(url, scroll = true, replace = false) {
 }
 
 function animateDetailSwipe(detail, href, direction) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !detail.animate) {
+  const content = detail.querySelector('.detail-content');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !content?.animate) {
     navigate(href, true, true);
     return;
   }
 
   swipeAnimation?.();
-  const bounds = detail.getBoundingClientRect();
+  const bounds = content.getBoundingClientRect();
   const frame = document.createElement('div');
   frame.className = 'detail-swipe-frame';
   frame.inert = true;
   frame.setAttribute('aria-hidden', 'true');
-  const outgoing = detail.cloneNode(true);
+  const outgoing = content.cloneNode(true);
   outgoing.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
   Object.assign(outgoing.style, {
     position: 'absolute',
@@ -815,7 +797,7 @@ function animateDetailSwipe(detail, href, direction) {
   frame.append(outgoing);
 
   navigate(href, true, true);
-  const incoming = app.querySelector('.detail');
+  const incoming = app.querySelector('.detail-content');
   if (!incoming) return;
   document.body.append(frame);
 
@@ -886,9 +868,7 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('button');
   if (!button || !data) return;
   try {
-    if (button.hasAttribute('data-description')) {
-      app.querySelector('#description-dialog').showModal();
-    } else if (button.hasAttribute('data-import-paste')) {
+    if (button.hasAttribute('data-import-paste')) {
       app.querySelector('#import-paste-dialog').showModal();
     } else if (button.dataset.view) {
       menuView = button.dataset.view;
@@ -1059,7 +1039,7 @@ window.addEventListener('storage', event => {
   if (event.key !== cartKey || checkingOut) return;
   cart = readCart();
   updateCartBadge();
-  if (!admin && !app.querySelector('.description-dialog[open]')) render();
+  if (!admin) render();
 });
 
 window.addEventListener('popstate', () => {
@@ -1067,7 +1047,7 @@ window.addEventListener('popstate', () => {
   if (app.querySelector('.detail-heading')) requestAnimationFrame(scrollToDetail);
 });
 if (!admin) {
-  window.addEventListener('focus', () => refresh(() => !app.querySelector('.description-dialog[open]')).catch(() => {}));
+  window.addEventListener('focus', () => refresh().catch(() => {}));
 }
 refresh().then(scrollToDetail).catch(error => {
   app.removeAttribute('aria-busy');
